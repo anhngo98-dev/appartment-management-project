@@ -1,47 +1,43 @@
-const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
 
-let pool;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
-function getSupabasePool() {
-  if (!process.env.SUPABASE_DB_URL) {
-    throw new Error('SUPABASE_DB_URL is not configured');
-  }
-
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.SUPABASE_DB_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
-    });
-  }
-
-  return pool;
+if (!supabaseUrl) {
+  throw new Error('SUPABASE_URL is not configured');
 }
 
-async function connectSupabase() {
-  const client = await getSupabasePool().connect();
-  try {
-    await client.query('select 1');
-    console.log('✓ Supabase PostgreSQL connected');
-  } finally {
-    client.release();
-  }
+if (!supabaseKey) {
+  throw new Error('SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY is not configured');
 }
 
-async function checkSupabaseConnection() {
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+});
+
+async function healthCheckSupabase() {
   try {
-    await getSupabasePool().query('select 1');
-    return true;
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw error;
+    }
+
+    return {
+      ok: true,
+      session: data?.session ? 'active' : 'no-session'
+    };
   } catch (error) {
-    console.error('✗ Supabase PostgreSQL connection error:', error.message);
-    return false;
+    return {
+      ok: false,
+      error: error.message
+    };
   }
 }
 
 module.exports = {
-  getSupabasePool,
-  connectSupabase,
-  checkSupabaseConnection
+  supabase,
+  healthCheckSupabase
 };

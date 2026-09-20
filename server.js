@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { healthCheckSupabase } = require('./config/supabase');
+const { protectSupabase } = require('./middleware/supabaseAuth');
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +25,22 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/apartment
 })
 .then(() => console.log('✓ MongoDB connected'))
 .catch(err => console.error('✗ MongoDB connection error:', err));
+
+// Supabase health check
+app.get('/api/supabase/health', async (req, res) => {
+  const result = await healthCheckSupabase();
+  if (!result.ok) {
+    return res.status(500).json(result);
+  }
+  res.json(result);
+});
+
+app.get('/api/supabase/me', protectSupabase, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user
+  });
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
